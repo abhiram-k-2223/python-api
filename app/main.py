@@ -78,3 +78,10 @@ def update_post(id: int, post: Post):
     my_posts[index] = post_dict
 
     return {"data": post_dict}
+
+
+@app.post("/")
+def post(post:Post):
+    post_dict = post.model_dump()
+    post_dict['id'] = randrange(0,100000)
+    
