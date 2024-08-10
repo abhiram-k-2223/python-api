@@ -3,6 +3,9 @@ from fastapi.params import Body
 from pydantic import BaseModel
 from typing import Optional
 from random import randrange
+import psycopg2
+from psycopg2.extras import RealDictCursor
+import time
 
 app = FastAPI()
 
@@ -12,14 +15,16 @@ class Post(BaseModel):
     rating:Optional[int] = None
     published:bool = True
 
-my_posts = [{"title":"friendship day scenario",
-             "content":"em ra bunty friendship day anta iyyala party edhi malla","id":1},
-             
-             {
-                 "title":"title of the post 2",
-                 "content":"content of the post 2",
-                 "id":2
-             }]
+while True:
+    try:
+        conn = psycopg2.connect(host = 'localhost',database = 'python-api',user = 'postgres',password = 'abhi2305',cursor_factory=RealDictCursor)
+        cursor = conn.cursor()
+        print("database connection was successful")
+        break
+    except Exception as e:
+        print("connecting to database failed")
+        print("error:",e)
+        time.sleep(2)
 
 @app.get("/")
 def root():
@@ -27,61 +32,58 @@ def root():
 
 @app.get('/posts')
 def posts():
-    print("all posts are shown")
-    return {"data":my_posts}
-
-def find_post(id):
-    for p in my_posts:
-        if p['id'] == id:
-            return p
+    cursor.execute("""select *from posts""")
+    posts = cursor.fetchall()
+    return {"data":posts}
 
 @app.get("/posts/{id}")
 def get_post(id: int, response: Response):
-    post = find_post(id)
+    cursor.execute("""select *from posts where id = %s""",(str(id),))
+    post = cursor.fetchone()
+    print(post)
     if not post:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,detail = 'Post not found' )
-    print(post)
-    return {"post detail": post}
+    return {"message":post}
 
-@app.post("/post",status_code = status.HTTP_201_CREATED)
-def post(post:Post):
-    post_dict = post.model_dump()
-    post_dict['id'] = randrange(0,100000)
-    my_posts.append(post_dict)
-    return {"data":post}
-
-def find_index_post(id):
-    for i,p in enumerate(my_posts):
-        if p['id'] == id:
-            return i
+@app.post("/post", status_code=status.HTTP_201_CREATED)
+def post(post: Post):
+    cursor.execute(
+        """INSERT INTO posts (title, content, published) 
+        VALUES (%s, %s, %s) RETURNING *""",
+        (post.title, post.content, post.published)
+    )
+    new_post = cursor.fetchone()
+    conn.commit()
+    return {"data": new_post}
 
 @app.delete("/posts/{id}",status_code=status.HTTP_204_NO_CONTENT)
 def delete_post(id: int, response: Response):
-    index = find_index_post(id)
+    cursor.execute(
+        """delete from posts where id = %s returning *""",(str(id),))
+    deleted_post = cursor.fetchone()
+    conn.commit()
 
-    if index == None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,detail = 'Post not found')
-
-    my_posts.pop(index)
-    return "post is removed"
+    if deleted_post == None:
+       raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,detail = 'Post not found')
+    print("the post is now deleted")
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+    
 
 
 @app.put("/posts/{id}")
 def update_post(id: int, post: Post):
-    index = find_index_post(id)
+    cursor.execute(
+        """UPDATE posts SET title = %s, content = %s, published = %s 
+           WHERE id = %s RETURNING *""",
+        (post.title, post.content, post.published, id)
+    )
+    updated_post = cursor.fetchone()
+    conn.commit()
 
-    if index == None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='Post not found')
+    if updated_post is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Post not found"
+        )
 
-    post_dict = post.model_dump()
-    post_dict['id'] = id
-    my_posts[index] = post_dict
-
-    return {"data": post_dict}
-
-
-@app.post("/")
-def post(post:Post):
-    post_dict = post.model_dump()
-    post_dict['id'] = randrange(0,100000)
-    
+    return {"data": updated_post}
