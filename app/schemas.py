@@ -29,3 +29,8 @@ class UserOut(BaseModel):
     created_at:datetime
     class Config:
         from_attributes=True
+
+
+class UserLogin(BaseModel):
+    email:EmailStr
+    password:str
