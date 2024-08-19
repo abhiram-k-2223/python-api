@@ -29,5 +29,5 @@ app.include_router(auth.router)
 
 @app.get("/")
 def root():
-    return {'message':'em vai bunty etla unnav'}
+    return {'message':'welcome'}
 
