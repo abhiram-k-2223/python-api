@@ -1,6 +1,7 @@
 from typing import Optional
-from pydantic import BaseModel,EmailStr
+from pydantic import BaseModel,EmailStr, conint
 from datetime import datetime
+from pydantic import BaseModel, Field
 
 
 class UserCreate(BaseModel):
@@ -36,6 +37,12 @@ class Post(PostBase):
     class Config:
         from_attributes=True
 
+class PostOut(BaseModel):
+    Post:Post
+    votes:int
+
+    class Config:
+        from_attributes=True
 
 
 class Token(BaseModel):
@@ -45,3 +52,6 @@ class Token(BaseModel):
 class TokenData(BaseModel):
     id:Optional[str] = None
 
+class Vote(BaseModel):
+    post_id: int
+    dir: int = Field(..., ge=0, le=1, description="Direction can only be 0 or 1")

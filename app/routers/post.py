@@ -5,6 +5,7 @@ from ..database import engine,get_db
 from typing import List
 from . import oauth2
 from typing import Optional
+from sqlalchemy import func
 
 router = APIRouter(
     prefix='/posts',
@@ -22,20 +23,23 @@ router = APIRouter(
 #         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No posts found for the current user.")
 #     return posts
 
-@router.get('/',response_model = List[schemas.Post])
+@router.get('/',response_model = List[schemas.PostOut])
 def posts(db:Session = Depends(get_db),current_user:int = Depends(oauth2.get_current_user),limit:int = 10,skip:int = 0,search:Optional[str] = ""):
-    posts = db.query(models.Post).filter(models.Post.title.contains(search)).limit(limit).offset(skip).all()
+    #posts = db.query(models.Post).filter(models.Post.title.contains(search)).limit(limit).offset(skip).all()
+    posts = db.query(models.Post,func.count(models.Vote.post_id).label('votes')).join(models.Vote,models.Vote.post_id == models.Post.id,isouter=True).group_by(models.Post.id).filter(models.Post.title.contains(search)).limit(limit).offset(skip).all()
+    # print(posts.owner_id)
     if not posts:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No posts found for the current user.")
     return posts
 
-@router.get("/{id}",response_model = schemas.Post)
+@router.get("/{id}",response_model = schemas.PostOut)
 def get_post(id: int, response: Response,db:Session = Depends(get_db),current_user:int = Depends(oauth2.get_current_user)):
-    post = db.query(models.Post).filter(models.Post.id == id).first()
+    post = db.query(models.Post,func.count(models.Vote.post_id).label('votes')).join(models.Vote,models.Vote.post_id == models.Post.id,isouter=True).group_by(models.Post.id).filter(models.Post.id == id).first()
+    # print(post.owner_id)
     if not post:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,detail = 'Post not found' )
-    if post.owner_id != current_user.id:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN,detail='you can only retrieve your posts')
+    # if post.owner_id != current_user.id:
+    #     raise HTTPException(status_code=status.HTTP_403_FORBIDDEN,detail='you can only retrieve your posts')
     
     return post
 
